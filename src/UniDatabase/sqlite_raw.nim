@@ -81,3 +81,14 @@ proc sqlite3_compileoption_used*(option: cstring): cint
     {.cdecl, importc, header: "sqlite3.h".}
 
 let SqliteTransient* = cast[pointer](-1)
+
+proc sqlite3_column_count*(statement: ptr SqliteStmt): cint {.cdecl, importc,
+    header: "sqlite3.h".}
+proc sqlite3_column_name*(statement: ptr SqliteStmt; index: cint): cstring {.
+    cdecl, importc, header: "sqlite3.h".}
+proc sqlite3_last_insert_rowid*(db: ptr Sqlite3): int64 {.cdecl, importc,
+    header: "sqlite3.h".}
+proc sqlite3_changes*(db: ptr Sqlite3): cint {.cdecl, importc,
+    header: "sqlite3.h".}
+proc sqlite3_bind_null*(statement: ptr SqliteStmt; index: cint): cint {.cdecl,
+    importc, header: "sqlite3.h".}

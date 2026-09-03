@@ -84,7 +84,11 @@ proc close*(connection: var Connection) =
       connection.fail("closing SQLite")
     connection.handle = nil
 
-proc execute*(connection: Connection; sql: string) =
+proc executeScript*(connection: Connection; sql: string) =
+  ## Every statement in `sql`, in order, with no parameters. This is SQLite's
+  ## own `sqlite3_exec`: a semicolon-separated script runs whole, which is what
+  ## a schema or a migration is. Values must never be formatted into it -- use
+  ## `execute` with `?` placeholders for anything a caller supplies.
   if not connection.isOpen: connection.fail("executing SQL")
   var message: cstring
   if sqlite3_exec(connection.handle, sql, nil, nil, addr message) != SqliteOk:
@@ -164,11 +168,96 @@ proc scalarInt64*(connection: Connection; sql: string): int64 =
     raise newException(DatabaseError, "scalar query returned no row")
   statement.columnInt64(0)
 
-proc beginImmediate*(connection: Connection) = connection.execute("BEGIN IMMEDIATE;")
-proc commit*(connection: Connection) = connection.execute("COMMIT;")
-proc rollback*(connection: Connection) = connection.execute("ROLLBACK;")
+# Literal statements with nothing bound into them, so `executeScript` -- which
+# is also the only one declared this early in the file.
+proc beginImmediate*(connection: Connection) =
+  connection.executeScript("BEGIN IMMEDIATE;")
+proc commit*(connection: Connection) = connection.executeScript("COMMIT;")
+proc rollback*(connection: Connection) = connection.executeScript("ROLLBACK;")
 proc schemaVersion*(connection: Connection): int = connection.scalarInt64(
     "PRAGMA user_version;").int
 proc setSchemaVersion*(connection: Connection; version: int) =
   if version < 0: raise newException(ValueError, "schema version cannot be negative")
-  connection.execute("PRAGMA user_version=" & $version & ";")
+  # Formatted, not bound: PRAGMA takes no placeholders, and SQLite parses its
+  # argument at prepare time. `version` is an int this procedure has already
+  # refused when negative, so nothing a caller writes reaches the statement.
+  connection.executeScript("PRAGMA user_version=" & $version & ";")
+
+# --- Parameterised queries ---------------------------------------------------
+# Everything below binds its arguments as text, which is what SQLite's dynamic
+# typing expects and what a caller writing `?` placeholders means. A column
+# declared INTEGER still stores an integer: SQLite applies the column's type
+# affinity to a text value on the way in.
+#
+# The alternative -- interpolating values into the SQL -- is how injection
+# happens, so there is deliberately no procedure here that takes a formatted
+# statement.
+
+proc bindAll(statement: Statement; args: openArray[string]) =
+  for index, value in args:
+    statement.bindText(index + 1, value)
+
+proc columnCount*(statement: Statement): int =
+  ## How many columns the statement's result has.
+  statement.requireLive("counting SQLite columns")
+  int(sqlite3_column_count(statement.handle))
+
+proc columnName*(statement: Statement; index: int): string =
+  ## The name SQLite gives a result column.
+  statement.requireLive("reading a SQLite column name")
+  let name = sqlite3_column_name(statement.handle, index.cint)
+  if name == nil: "" else: $name
+
+proc execute*(connection: Connection; sql: string;
+    args: varargs[string, `$`]) =
+  ## One statement, with `?` placeholders bound to `args`. Exactly one: a
+  ## prepared statement is one statement by definition, and a script goes to
+  ## `executeScript` instead.
+  var statement = connection.prepare(sql)
+  defer: statement.finalize
+  statement.bindAll(args)
+  discard statement.step
+
+proc affectedRows*(connection: Connection): int =
+  ## Rows the last INSERT, UPDATE or DELETE on this connection changed.
+  if not connection.isOpen: connection.fail("counting affected rows")
+  int(sqlite3_changes(connection.handle))
+
+proc lastInsertId*(connection: Connection): int64 =
+  ## The ROWID the last INSERT on this connection produced.
+  if not connection.isOpen: connection.fail("reading the last insert id")
+  sqlite3_last_insert_rowid(connection.handle)
+
+proc row*(connection: Connection; sql: string;
+    args: varargs[string, `$`]): seq[string] =
+  ## The first row, every column as text, or an empty seq when there is none.
+  ## Absence is an empty seq rather than an exception: "no such row" is an
+  ## answer a caller acts on, not a failure.
+  var statement = connection.prepare(sql)
+  defer: statement.finalize
+  statement.bindAll(args)
+  if statement.step != rowAvailable: return @[]
+  for index in 0 ..< statement.columnCount:
+    result.add statement.columnText(index)
+
+proc value*(connection: Connection; sql: string;
+    args: varargs[string, `$`]): string =
+  ## The first column of the first row, or "" when there is no row. A stored
+  ## empty string and a missing row look the same here; use `row` when the
+  ## difference matters.
+  let first = connection.row(sql, args)
+  if first.len == 0: "" else: first[0]
+
+iterator rows*(connection: Connection; sql: string;
+    args: varargs[string, `$`]): seq[string] =
+  ## Every row, one at a time. The statement is finalized when the loop ends,
+  ## including on a break -- `defer` in an iterator runs on every exit path.
+  var statement = connection.prepare(sql)
+  defer: statement.finalize
+  statement.bindAll(args)
+  let columns = statement.columnCount
+  while statement.step == rowAvailable:
+    var current = newSeqOfCap[string](columns)
+    for index in 0 ..< columns:
+      current.add statement.columnText(index)
+    yield current

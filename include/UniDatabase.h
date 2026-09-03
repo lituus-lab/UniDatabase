@@ -52,7 +52,12 @@ void *unidatabase_open(const char *path);
 /* Release a connection. NULL is a no-op. */
 void unidatabase_close(void *connection);
 
-/* Run one statement. 1 on success, 0 on failure. */
+/* Run SQL. Every statement in the text runs, in order -- a semicolon-separated
+ * script is executed whole, which is what a schema or a migration is.
+ * 1 on success, 0 on failure, with the reason in unidatabase_last_error.
+ *
+ * There are no placeholders here: a value must never be formatted into this
+ * string. The Nim and Python APIs take bound parameters for that. */
 int unidatabase_execute(void *connection, const char *sql);
 
 #ifdef __cplusplus
