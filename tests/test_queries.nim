@@ -4,7 +4,7 @@
 ## two counters SQLite keeps per connection. What is checked here is that a
 ## value never reaches SQLite as part of the statement text -- which is the
 ## whole reason this layer exists rather than string formatting.
-import std/[os, tempfiles, unittest]
+import std/[os, strutils, tempfiles, unittest]
 import UniDatabase
 
 let queryRoot = createTempDir("unidatabase-queries-", "")
@@ -79,5 +79,53 @@ suite "parameterised statements":
     connection.close
     expect DatabaseError: discard connection.affectedRows
     expect DatabaseError: discard connection.lastInsertId
+
+suite "what execute refuses":
+  # Both of these used to be silent, and silence is the problem: a caller who
+  # got them wrong learned nothing until the data was wrong.
+
+  test "an argument short is refused, not bound as NULL":
+    var connection = seeded(scratch("short"))
+    expect DatabaseError:
+      connection.execute("INSERT INTO note(text, n) VALUES (?, ?)", "only one")
+    # The row was never written -- the refusal happens before the step.
+    check connection.value("SELECT count(*) FROM note") == "2"
+    connection.close
+
+  test "an argument too many is refused, and says how many":
+    var connection = seeded(scratch("long"))
+    try:
+      connection.execute("INSERT INTO note(text) VALUES (?)", "a", "b")
+      check false # unreachable: the call above must raise
+    except DatabaseError as error:
+      check "1 parameter(s), 2 given" in error.msg
+    connection.close
+
+  test "a second statement is refused, not dropped":
+    var connection = seeded(scratch("two"))
+    try:
+      connection.execute(
+        "INSERT INTO note(text) VALUES ('a'); INSERT INTO note(text) VALUES ('b')")
+      check false # unreachable
+    except DatabaseError as error:
+      # SQLite compiles as far as the first statement and hands back the rest;
+      # without this check the first ran and the second vanished.
+      check "executeScript" in error.msg
+      check "'b'" in error.msg
+    check connection.value("SELECT count(*) FROM note") == "2"
+    connection.close
+
+  test "trailing whitespace and a semicolon are not a second statement":
+    var connection = seeded(scratch("trailing"))
+    connection.execute("INSERT INTO note(text, n) VALUES (?, ?);  \n ", "third", 3)
+    check connection.value("SELECT count(*) FROM note") == "3"
+    connection.close
+
+  test "executeScript still runs every statement":
+    var connection = seeded(scratch("script"))
+    connection.executeScript(
+      "INSERT INTO note(text) VALUES ('a'); INSERT INTO note(text) VALUES ('b')")
+    check connection.value("SELECT count(*) FROM note") == "4"
+    connection.close
 
 removeDir(queryRoot)
