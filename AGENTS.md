@@ -29,8 +29,13 @@ coverage on ubuntu; a canary job that must fail; `all-green` over all of them.
 ## Conventions
 
 - English comments, terse, describe what is done. No "deprecated".
-- NimContracts `{.contractual.}` + `require:`/`ensure:`/`body:`, compiled away
-  under `-d:release`. C ABI never raises — it clamps out-of-range input.
+- No NimContracts here, and the dependency is not declared: every check in this
+  library guards a live SQLite handle or a C ABI, and both must hold under
+  `-d:release`, where contracts are compiled away.
+- The C ABI never raises: `{.raises: [].}` on every entry point, a failure is a
+  false or NULL return, and the reason waits in `unidatabase_last_error`.
+- A handle crossing the ABI is pinned with `GC_ref`; under `--mm:arc` the C
+  caller holds the only reference.
 - A postcondition is cheaper than the body: never re-derives the result by
   calling the function itself.
 - C ABI: hand-written `include/UniDatabase.h` kept in sync with
@@ -49,10 +54,16 @@ coverage on ubuntu; a canary job that must fail; `all-green` over all of them.
 - End covered sources with a blank line. Nim maps a trailing statement one line
   past EOF; without that line lcov aborts on `range`/`unmapped`, and `coverage`
   keeps those fatal so the failure stays visible. It ignores exactly one error,
-  `mismatch`, which lcov 2.0 raises on a NimContracts-generated destructor and
-  lcov 2.5 does not — a compiler-generated symbol, not a line of the library.
+  `mismatch`, which lcov 2.0 raises on a compiler-generated destructor and lcov
+  2.5 does not — a generated symbol, not a line of the library.
+- Coverage instruments `tests/test_all.nim` alone: gcov data for a second
+  compilation into the same nimcache overwrites the first.
+- `vgraph.cfg` must name the modules that exist. A layer no file answers to
+  constrains nothing, and `checkVGraph` then passes on a graph it never read.
 
 ## Scope
 
-GitHub template repository for the `Uni*` family: "Use this template" starts an
-engine with the layout, the gates and the CI in place. Apache-2.0, DCO.
+A SQLite database engine: connections, prepared statements, transactions,
+schema version and capability reporting, reachable from Nim, from C and from
+Python. SQLite only for now — what a second backend has to preserve is in
+ADR-0005. Apache-2.0, DCO.

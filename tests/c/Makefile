@@ -12,6 +12,9 @@ endif
 ROOT   := $(CURDIR)/../..
 CFLAGS := -I$(ROOT)/include -O2 -Wall -Wextra -std=c11
 LIB    := $(ROOT)/libUniDatabase.a
+# libUniDatabase.a leaves the SQLite entry points unresolved: the engine binds
+# the system library rather than vendoring it, so the consumer supplies it.
+LIBS   := -lsqlite3
 
 ifeq ($(OS),Windows_NT)
   BIN  := test_unidatabase.exe
@@ -28,7 +31,7 @@ all: run
 run: $(BIN)
 	$(RUN)
 $(BIN): test_unidatabase.c $(ROOT)/include/UniDatabase.h $(LIB)
-	$(CC) $(CFLAGS) -o $(BIN) test_unidatabase.c $(LIB)
+	$(CC) $(CFLAGS) -o $(BIN) test_unidatabase.c $(LIB) $(LIBS)
 # File target, not phony: `nimble ctest` already built the lib, don't redo it.
 $(LIB):
 	cd $(ROOT) && nimble clibStatic

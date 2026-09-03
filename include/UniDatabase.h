@@ -20,16 +20,35 @@ extern "C" {
    (UNIDATABASE_VERSION_MAJOR == (ma) && UNIDATABASE_VERSION_MINOR == (mi) && \
     UNIDATABASE_VERSION_PATCH >= (pa)))
 
-/* Largest n with unidatabase_fibonacci(n) fitting in long long (int64). */
-#define UNIDATABASE_FIB_MAX_N 92
+/* Conventions:
+ *   * A connection is an opaque void*. This library owns it; release it with
+ *     unidatabase_close. NULL is a no-op for close.
+ *   * A call that fails returns NULL or 0 and leaves its reason in
+ *     unidatabase_last_error. That slot holds one message: the next failing
+ *     call overwrites it, so read it before calling again.
+ *   * No Nim exception crosses this boundary; every entry point traps.
+ *   * A connection carries no lock. One thread at a time may use or close a
+ *     given one; a caller sharing one across threads serialises that itself. */
 
 /* Static version string; do not free. */
 const char *unidatabase_version(void);
 
-/* fibonacci(n), n clamped to [0, UNIDATABASE_FIB_MAX_N].
- * n < 0 -> 0; n > UNIDATABASE_FIB_MAX_N -> fibonacci(UNIDATABASE_FIB_MAX_N).
- * Never raises. Single-threaded, reentrant. */
-long long unidatabase_fibonacci(int n);
+/* C ABI generation. A consumer built against a different one is not
+ * compatible with this library. */
+int unidatabase_abi_version(void);
+
+/* The reason the last call failed, or "" when none has. Borrowed: do not
+ * free, and copy it if it must outlive the next call. */
+const char *unidatabase_last_error(void);
+
+/* Open the SQLite database at `path`. NULL on failure. */
+void *unidatabase_open(const char *path);
+
+/* Release a connection. NULL is a no-op. */
+void unidatabase_close(void *connection);
+
+/* Run one statement. 1 on success, 0 on failure. */
+int unidatabase_execute(void *connection, const char *sql);
 
 #ifdef __cplusplus
 }

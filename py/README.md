@@ -19,13 +19,16 @@ build/unigate pyWheel        # a wheel in py/dist/
 ```
 
 ```python
-import unidatabase
+from unidatabase import Database, version
 
-unidatabase.version()        # the C library's version
-unidatabase.FIB_MAX_N        # 92, read from the C header, not restated here
-unidatabase.fibonacci(10)    # 55
+version()                    # the C library's version
+
+with Database("app.sqlite") as db:
+    db.execute("CREATE TABLE note(text TEXT)")
+    db.execute("INSERT INTO note VALUES ('kept')")
 ```
 
-`fibonacci` raises `TypeError` for a non-int and `ValueError` outside
-`[0, FIB_MAX_N]`. The C ABI clamps instead of reporting; the binding is where
-the domain becomes an error, because Python callers expect one.
+`Database` is a context manager; `close()` is idempotent, and using a closed
+one raises `RuntimeError`. Every failure raises: the C ABI reports it as a
+false return and leaves the reason in its own error slot, which the binding
+reads before the next call can overwrite it.
