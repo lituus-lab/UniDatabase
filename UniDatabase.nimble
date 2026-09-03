@@ -148,12 +148,16 @@ task docs, "API reference + book into pages/ — what CI publishes":
 
 task test, "Nim tests (debug, contracts active)":
   exec "nim c -r --path:src -o:build/test_sqlite tests/test_sqlite.nim"
+  exec "nim c -r --path:src -o:build/test_queries tests/test_queries.nim"
+  exec "nim c -r --path:src -o:build/test_queries tests/test_queries.nim"
   exec "nim c -r --path:src -o:build/test_sqlite_errors tests/test_sqlite_errors.nim"
   exec "nim c -r --path:src -o:build/test_version tests/test_version.nim"
   done "test"
 
 task testRelease, "Nim tests (release, contracts compiled away)":
   exec "nim c -r -d:release --path:src -o:build/test_sqlite_rel tests/test_sqlite.nim"
+  exec "nim c -r -d:release --path:src -o:build/test_queries_rel tests/test_queries.nim"
+  exec "nim c -r -d:release --path:src -o:build/test_queries_rel tests/test_queries.nim"
   exec "nim c -r -d:release --path:src -o:build/test_sqlite_errors_rel tests/test_sqlite_errors.nim"
   exec "nim c -r -d:release --path:src -o:build/test_version_rel tests/test_version.nim"
   done "testRelease"

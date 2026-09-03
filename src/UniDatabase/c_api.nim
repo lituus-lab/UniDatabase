@@ -131,13 +131,14 @@ proc unidatabase_close(handle: pointer) =
   GC_unref(value)
 
 proc unidatabase_execute(handle: pointer; sql: cstring): cint =
-  ## 1 on success, 0 with the reason in `unidatabase_last_error`.
+  ## Every statement in `sql`, in order. 1 on success, 0 with the reason in
+  ## `unidatabase_last_error`.
   ensureRuntime()
   if handle == nil or sql == nil:
     setError("unidatabase_execute: NULL argument")
     return 0
   try:
-    cast[AbiConnection](handle).connection.execute($sql)
+    cast[AbiConnection](handle).connection.executeScript($sql)
     1
   except CatchableError, Defect:
     setError(currentMessage("unidatabase_execute failed"))
