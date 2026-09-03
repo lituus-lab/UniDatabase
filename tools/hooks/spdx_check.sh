@@ -15,6 +15,10 @@ while IFS= read -r f; do
     echo "Missing SPDX-License-Identifier in first 5 lines: $f"
     missing=1
   fi
-done < <(git ls-files -- '*.nim' '*.nims' '*.c' '*.h' '*.py' '*.pyx')
+# `:!src/*/vendor/*` excludes third-party sources kept verbatim: they carry
+# their upstream licence, not this repo's, and adding a header would be a local
+# edit lost at the next update. Their provenance lives in the vendor README.
+done < <(git ls-files -- '*.nim' '*.nims' '*.c' '*.h' '*.py' '*.pyx' \
+           ':!:src/*/vendor/*')
 
 exit "$missing"

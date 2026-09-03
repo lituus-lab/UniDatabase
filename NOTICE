@@ -15,5 +15,6 @@ limitations under the License.
 
 ----------------------------------------------------------------------------
 
-Depends on NimContracts (github.com/lbartoletti/NimContracts), MIT-licensed,
-tracked at its main branch HEAD.
+Bundles SQLite 3.50.4 (sqlite.org), the amalgamation, verbatim and unmodified,
+in src/UniDatabase/vendor/. SQLite is in the public domain: its author
+disclaims copyright. Provenance and checksums are in that directory's README.
