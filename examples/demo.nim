@@ -2,14 +2,17 @@
 # Copyright 2026 lituus-lab
 ## A whole session: open, create, insert inside a transaction, read back, and
 ## the schema version SQLite carries for you. Written into a temporary
-## directory that is removed at the end, so running the demo twice is the same
-## as running it once -- and so it works on Windows, which has no /tmp.
-import std/[os, sequtils, strutils]
+## directory the OS reserves for this run and that is removed at the end, so
+## running the demo twice is the same as running it once -- and so it works on
+## Windows, which has no /tmp.
+import std/[os, sequtils, strutils, tempfiles]
 import UniDatabase
 
 proc main() =
-  let directory = getTempDir() / "unidatabase-demo"
-  createDir(directory)
+  # A directory the OS reserves for this run alone. A fixed name would be
+  # reopened by the next run if this one stopped before its cleanup -- and
+  # `CREATE TABLE note` would then fail on a table that already exists.
+  let directory = createTempDir("unidatabase-demo-", "")
   defer: removeDir(directory)
 
   var connection = openSqlite(directory / "demo.sqlite")

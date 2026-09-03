@@ -18,7 +18,22 @@ type
     handle: ptr SqliteStmt
     connection: ptr Sqlite3
 
-const SqliteCapabilities* = {preparedStatements, transactions, writeAheadLog}
+proc `=copy`(destination: var Connection; source: Connection) {.error:
+  "a Connection owns a SQLite handle and cannot be copied: pass it, or open " &
+  "another one".}
+proc `=copy`(destination: var Statement; source: Statement) {.error:
+  "a Statement owns a SQLite handle and cannot be copied: pass it, or prepare " &
+  "another one".}
+  ## Both types are value objects holding a raw SQLite pointer, and `close` and
+  ## `finalize` clear only the receiver's copy. A duplicate would keep a pointer
+  ## to memory SQLite has freed, and finalize it a second time. Refused by the
+  ## compiler rather than left to a caller to avoid: moves still work, which is
+  ## every legitimate use.
+
+const SqliteCapabilities* = {preparedStatements, transactions}
+  ## What the API offers on any SQLite. WAL and FTS5 are compile-time options of
+  ## the linked library, so `capabilities` asks for them rather than declaring
+  ## them here.
 
 proc fail(connection: Connection; operation: string) {.noreturn.} =
   let detail = if connection.handle == nil: "closed connection" else: $sqlite3_errmsg(
@@ -55,6 +70,11 @@ proc isOpen*(connection: Connection): bool = connection.handle != nil
 proc capabilities*(connection: Connection): set[SqliteCapability] =
   if not connection.isOpen: connection.fail("reading SQLite capabilities")
   result = SqliteCapabilities
+  # Both are asked of the linked library. A SQLite built with SQLITE_OMIT_WAL
+  # has no write-ahead log at all, and announcing one would send a caller into
+  # `PRAGMA journal_mode=WAL` that silently does not take.
+  if sqlite3_compileoption_used("OMIT_WAL") == 0:
+    result.incl(writeAheadLog)
   if sqlite3_compileoption_used("ENABLE_FTS5") != 0:
     result.incl(fullTextSearch5)
 
@@ -81,9 +101,13 @@ proc prepare*(connection: Connection; sql: string): Statement =
 
 proc finalize*(statement: var Statement) =
   if statement.handle != nil:
-    if sqlite3_finalize(statement.handle) != SqliteOk:
-      raise newException(DatabaseError, "finalizing SQLite statement")
+    # The handle is cleared first, on purpose: sqlite3_finalize deallocates the
+    # statement whether or not it reports an error, so raising before this line
+    # would leave a pointer to freed memory behind and `isLive` would agree.
+    let handle = statement.handle
     statement.handle = nil
+    if sqlite3_finalize(handle) != SqliteOk:
+      raise newException(DatabaseError, "finalizing SQLite statement")
 
 proc isLive*(statement: Statement): bool =
   ## False once `finalize` has run. Every other Statement procedure raises

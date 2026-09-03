@@ -36,6 +36,12 @@ cdef class Connection:
         self._handle = NULL
 
     def open(self, bytes path):
+        # Refused rather than overwritten: this class is importable on its own,
+        # and a second open would strand the first handle -- close() releases
+        # only what _handle points at, so the first connection would stay open
+        # for the life of the process.
+        if self._handle is not NULL:
+            raise RuntimeError("this connection is already open")
         self._handle = unidatabase_open(path)
         return self._handle is not NULL
 

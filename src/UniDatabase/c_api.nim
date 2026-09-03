@@ -64,6 +64,14 @@ type AbiConnection = ref object
 
 # The reason for the last failure, read back through `unidatabase_last_error`.
 # A single slot, as the header states: it is overwritten by the next failure.
+#
+# One slot for the whole library, not one per thread, and not synchronized. The
+# header allows separate threads to hold separate connections, and two of them
+# failing at once race here; the pointer handed back can also be invalidated by
+# another thread's failure before the caller reads it. Not a threadvar: emulated
+# thread-local storage under `--noMain` has no initializer to run, and a slot
+# that silently reads empty on a thread would be worse than one the header is
+# honest about. A caller that needs more serializes its own calls.
 var lastError = ""
 
 proc setError(message: string) {.raises: [].} =
