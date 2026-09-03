@@ -49,8 +49,14 @@ proc sqlite3_exec*(db: ptr Sqlite3; sql: cstring; callback: pointer;
         header: "sqlite3.h".}
 proc sqlite3_free*(memory: pointer) {.cdecl, importc, header: "sqlite3.h".}
 proc sqlite3_prepare_v2*(db: ptr Sqlite3; sql: cstring; bytes: cint;
-    statement: ptr ptr SqliteStmt; tail: ptr cstring): cint {.cdecl, importc,
+    statement: ptr ptr SqliteStmt; tail: pointer): cint {.cdecl, importc,
         header: "sqlite3.h".}
+  ## `tail` is `const char **` in SQLite, and Nim's `ptr cstring` emits
+  ## `char **`. C converts `char *` to `const char *` implicitly but not
+  ## `char **` to `const char **`, so gcc 14 and later reject the call outright;
+  ## clang and older gcc only warned, which is why this only ever failed on
+  ## Windows. `pointer` is `void *`, which converts to either -- and this
+  ## library always passes nil, having no use for the unparsed tail.
 proc sqlite3_bind_text*(statement: ptr SqliteStmt; index: cint; value: cstring;
     bytes: cint; destructor: pointer): cint {.cdecl, importc,
         header: "sqlite3.h".}
