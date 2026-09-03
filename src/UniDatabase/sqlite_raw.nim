@@ -92,3 +92,5 @@ proc sqlite3_changes*(db: ptr Sqlite3): cint {.cdecl, importc,
     header: "sqlite3.h".}
 proc sqlite3_bind_null*(statement: ptr SqliteStmt; index: cint): cint {.cdecl,
     importc, header: "sqlite3.h".}
+proc sqlite3_bind_parameter_count*(statement: ptr SqliteStmt): cint {.cdecl,
+    importc, header: "sqlite3.h".}

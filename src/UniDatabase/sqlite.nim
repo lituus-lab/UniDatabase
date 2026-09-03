@@ -1,5 +1,5 @@
 ## SPDX-License-Identifier: Apache-2.0
-import std/os
+import std/[os, strutils]
 import UniDatabase/sqlite_raw
 
 type
@@ -97,11 +97,22 @@ proc executeScript*(connection: Connection; sql: string) =
     if message != nil: sqlite3_free(message)
     raise newException(DatabaseError, detail)
 
-proc prepare*(connection: Connection; sql: string): Statement =
+proc prepareTail(connection: Connection; sql: string;
+    tail: var string): Statement =
+  ## `prepare`, and what SQLite did not compile. It stops at the end of the
+  ## first statement and hands back a pointer to the rest, which is the only
+  ## way to tell one statement from two before running anything.
   if not connection.isOpen: connection.fail("preparing SQL")
   result.connection = connection.handle
-  if sqlite3_prepare_v2(connection.handle, sql, -1, addr result.handle, nil) != SqliteOk:
+  var rest: cstring = nil
+  if sqlite3_prepare_v2(connection.handle, sql, -1, addr result.handle,
+      addr rest) != SqliteOk:
     connection.fail("preparing SQL")
+  tail = if rest == nil: "" else: $rest
+
+proc prepare*(connection: Connection; sql: string): Statement =
+  var ignored: string
+  connection.prepareTail(sql, ignored)
 
 proc finalize*(statement: var Statement) =
   if statement.handle != nil:
@@ -194,6 +205,17 @@ proc setSchemaVersion*(connection: Connection; version: int) =
 # statement.
 
 proc bindAll(statement: Statement; args: openArray[string]) =
+  ## Every placeholder gets an argument, and every argument a placeholder.
+  ##
+  ## Without the count, one argument short left that parameter NULL and the
+  ## statement ran anyway -- an UPDATE silently writing NULL over a column is
+  ## the kind of failure that surfaces days later, in the data. One too many
+  ## did raise, through SQLITE_RANGE, but said only "binding SQLite text".
+  let expected = int(sqlite3_bind_parameter_count(statement.handle))
+  if args.len != expected:
+    raise newException(DatabaseError,
+      "statement takes " & $expected & " parameter(s), " & $args.len &
+      " given")
   for index, value in args:
     statement.bindText(index + 1, value)
 
@@ -210,11 +232,16 @@ proc columnName*(statement: Statement; index: int): string =
 
 proc execute*(connection: Connection; sql: string;
     args: varargs[string, `$`]) =
-  ## One statement, with `?` placeholders bound to `args`. Exactly one: a
-  ## prepared statement is one statement by definition, and a script goes to
-  ## `executeScript` instead.
-  var statement = connection.prepare(sql)
+  ## One statement, with `?` placeholders bound to `args`. Exactly one, and a
+  ## second is refused rather than dropped: SQLite compiles only as far as the
+  ## first, so `execute("A; B")` used to run A and say nothing about B. A script
+  ## goes to `executeScript`, which is the procedure that means it.
+  var tail: string
+  var statement = connection.prepareTail(sql, tail)
   defer: statement.finalize
+  if tail.strip.len > 0:
+    raise newException(DatabaseError,
+      "execute takes one statement; use executeScript for: " & tail.strip)
   statement.bindAll(args)
   discard statement.step
 
