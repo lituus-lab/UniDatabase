@@ -281,7 +281,8 @@ task coverage, "LCOV + HTML coverage report for the Nim sources (needs lcov)":
        " -o:build/test_coverage tests/test_all.nim"
   exec "./build/test_coverage"
   exec "lcov --capture --directory " & cache & " --base-directory ." &
-       " --include \"*/src/UniDatabase/*\" --ignore-errors mismatch" &
+       " --include \"*/src/UniDatabase/*\" --exclude \"*/vendor/*\"" &
+       " --ignore-errors mismatch" &
        " --output-file lcov.info --quiet"
   # gcov can attribute a final generated expression to EOF + 1, and that one
   # artefact answers to two names: lcov 2.0, the version ubuntu-latest installs,

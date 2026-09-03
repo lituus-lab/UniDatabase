@@ -14,7 +14,21 @@ CFLAGS := -I$(ROOT)/include -O2 -Wall -Wextra -std=c11
 LIB    := $(ROOT)/libUniDatabase.a
 # libUniDatabase.a leaves the SQLite entry points unresolved: the engine binds
 # the system library rather than vendoring it, so the consumer supplies it.
-LIBS   := -lsqlite3
+# SQLite is compiled into libUniDatabase.a, so nothing links -lsqlite3 any more.
+# What is left is what SQLite itself calls into, and only where the platform
+# keeps it in a separate library: libm and dlopen and pthreads on Linux, libm
+# on macOS, nothing on Windows (kernel32 covers it, and MinGW links libm by
+# default).
+ifeq ($(OS),Windows_NT)
+  LIBS :=
+else
+  UNAME := $(shell uname -s)
+  ifeq ($(UNAME),Linux)
+    LIBS := -lm -ldl -lpthread
+  else
+    LIBS := -lm
+  endif
+endif
 
 ifeq ($(OS),Windows_NT)
   BIN  := test_unidatabase.exe

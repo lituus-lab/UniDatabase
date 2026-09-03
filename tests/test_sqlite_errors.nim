@@ -209,6 +209,68 @@ suite "a finalized statement is refused, never answered":
     connection.close
     removeFile(path)
 
+suite "the failures SQLite reports on the way out":
+  # Every one of these is a path the happy suite cannot reach, and each was
+  # untested: the error branches of close, step, reset and finalize.
+  proc violating(connection: var Connection): Statement =
+    ## A statement whose next step breaks a UNIQUE constraint.
+    connection.execute("CREATE TABLE t(x INTEGER PRIMARY KEY)")
+    connection.execute("INSERT INTO t VALUES (1)")
+    connection.prepare("INSERT INTO t VALUES (1)")
+
+  test "a step that violates a constraint carries SQLite's own words":
+    var connection = openSqlite(scratch("step.sqlite"))
+    var statement = connection.violating
+    try:
+      discard statement.step
+      check false # unreachable: the step above must raise
+    except DatabaseError as error:
+      check "UNIQUE constraint failed" in error.msg
+      check "stepping SQLite statement" in error.msg
+    # finalize answers with the failed step's code too; the statement is
+    # released either way, which the next test is about.
+    try: statement.finalize
+    except DatabaseError: discard
+    connection.close
+
+  test "reset reports the failure the step left behind":
+    var connection = openSqlite(scratch("reset.sqlite"))
+    var statement = connection.violating
+    try: discard statement.step
+    except DatabaseError: discard
+    # sqlite3_reset answers with the error code of the most recent step, so
+    # this is where a caller who swallowed the step failure still meets it.
+    expect DatabaseError:
+      statement.reset
+    try: statement.finalize
+    except DatabaseError: discard
+    connection.close
+
+  test "finalize reports it too, and still releases the statement":
+    var connection = openSqlite(scratch("finalize-error.sqlite"))
+    var statement = connection.violating
+    try: discard statement.step
+    except DatabaseError: discard
+    expect DatabaseError:
+      statement.finalize
+    # The point of clearing the handle before raising: SQLite freed the
+    # statement whatever it reported, so nothing may look live afterwards.
+    check not statement.isLive
+    connection.close
+
+  test "closing over a live statement is refused, not silently ignored":
+    var connection = openSqlite(scratch("busy.sqlite"))
+    connection.execute("CREATE TABLE t(x)")
+    var statement = connection.prepare("SELECT x FROM t")
+    try:
+      connection.close
+      check false # unreachable: SQLite reports SQLITE_BUSY
+    except DatabaseError as error:
+      check "unfinalized statements" in error.msg
+    statement.finalize
+    connection.close
+    check not connection.isOpen
+
 # Last line of the module, not an exit hook: `unittest` runs each suite where it
 # is written, so by here every test has finished, and the removal is ordered by
 # the program rather than by whatever the runtime tears down first. An exit proc

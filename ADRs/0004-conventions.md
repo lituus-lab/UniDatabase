@@ -12,6 +12,7 @@
 UniDatabase.nimble          package + tasks
 config.nims                 arch-conditional build flags
 src/UniDatabase.nim         umbrella
+src/UniDatabase/vendor/     SQLite's amalgamation, verbatim (see its README)
 src/UniDatabase/sqlite_raw.nim  the C declarations, and nothing else
 src/UniDatabase/sqlite.nim  the typed API callers use
 src/UniDatabase/c_api.nim   C ABI

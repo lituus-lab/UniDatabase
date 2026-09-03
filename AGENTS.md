@@ -32,6 +32,16 @@ coverage on ubuntu; a canary job that must fail; `all-green` over all of them.
 - No NimContracts here, and the dependency is not declared: every check in this
   library guards a live SQLite handle or a C ABI, and both must hold under
   `-d:release`, where contracts are compiled away.
+- `defer` is not allowed at module level, `when isMainModule` included. Every
+  example that releases a handle therefore lives in a proc; written flat it does
+  not compile, which has caught `examples/demo.nim` and the README once each.
+  Extract every fenced Nim block that imports and compile it before shipping.
+- SQLite is compiled in from `src/UniDatabase/vendor/`, never linked from the
+  system. Windows runners carry no `sqlite3.h`, and an sdist install needed
+  development files no wheel user has. Nothing links `-lsqlite3`: the C
+  Makefiles name only what SQLite itself calls into (libm, and dl/pthread on
+  Linux). `spdx_check.sh` and `coverage` skip that directory -- upstream's
+  files, unmodified.
 - The C ABI never raises: `{.raises: [].}` on every entry point, a failure is a
   false or NULL return, and the reason waits in `unidatabase_last_error`.
 - A handle crossing the ABI is pinned with `GC_ref`; under `--mm:arc` the C

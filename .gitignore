@@ -49,6 +49,13 @@ py/_nimsrc/
 tests/c/test_unidatabase
 examples/c/demo
 
+# databases a run leaves behind. The demos write under the OS temporary
+# directory now, but a stray one here must never be committable again: one was.
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
 # os / editor
 .DS_Store
 *~
