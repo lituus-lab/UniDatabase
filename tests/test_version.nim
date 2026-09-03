@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 lituus-lab
-## The version and the domain bound, stated in six places, checked to agree.
+## The version, stated in six places, checked to agree.
 ##
 ## Nimble refuses anything but a string literal for `version`, so the manifest
 ## cannot import a shared constant and no amount of arranging makes one file
@@ -58,17 +58,5 @@ suite "one version, six copies":
     check valueOf("py/pyproject.toml", "version", "\"", "\"") == manifest
 
   test "the Python test expects it":
-    check valueOf("py/tests/test_fibonacci.py", "unidatabase.version()", "\"",
+    check valueOf("py/tests/test_unidatabase.py", "version() == ", "\"",
         "\"") == manifest
-
-suite "one domain bound, two copies":
-  # Python reads it from the header through the binding, so only the Nim
-  # constant and the C macro state it -- and a C consumer needs a literal.
-  test "the C macro agrees with the Nim constant":
-    check valueOf("include/UniDatabase.h", "UNIDATABASE_FIB_MAX_N", " ", "") == $FibMaxN
-
-  test "the bound is the largest that fits, and one past it does not":
-    # int64 holds fib(92); fib(93) is 12200160415121876738, which it does not.
-    check fibonacci(FibMaxN) == 7540113804746346429
-    check fibonacci(FibMaxN) < high(int)
-    check float(fibonacci(FibMaxN)) * 1.6180339887 > float(high(int))

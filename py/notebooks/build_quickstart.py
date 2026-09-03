@@ -24,48 +24,71 @@ self-contained wheel: the native library travels inside the package, so
 installing it needs neither Nim nor a compiler.
 
 ```
-pip install unidatabase
+pip install lituus-unidatabase
 ```
 
 CI executes this notebook against the wheel the release actually publishes, so
 an output below that stops matching fails the build."""),
     ("md", "## The API"),
-    ("code", """import unidatabase
+    ("code", """import tempfile
+from pathlib import Path
 
-unidatabase.version(), unidatabase.__version__"""),
-    ("md", "`fibonacci` is the template's hello-world, iterative and O(n)."),
-    ("code", "[unidatabase.fibonacci(n) for n in range(11)]"),
-    ("md", """## The domain is part of the contract
+import unidatabase
 
-`fibonacci` is defined on `[0, 92]` — 92 being the largest argument whose result
-still fits in a signed 64-bit integer. The bound is not advisory."""),
-    ("code", "unidatabase.fibonacci(92)"),
-    ("md", """Past it the binding raises, rather than returning a silently wrong
-number. This is the contract the Nim library states as a precondition; each
-surface expresses it in the terms its own callers expect."""),
+unidatabase.version(), unidatabase.abi_version()"""),
+    ("md", """## A database
+
+`Database` opens a SQLite file and is a context manager: leaving the block
+closes the connection. The parent directory is created if it is missing."""),
+    ("code", """directory = tempfile.TemporaryDirectory()
+path = str(Path(directory.name) / "quickstart.sqlite")
+
+db = unidatabase.Database(path)
+db.execute("CREATE TABLE note(id INTEGER PRIMARY KEY, text TEXT)")
+db.execute("INSERT INTO note(text) VALUES ('kept')")
+db.is_open"""),
+    ("md", """## Closing
+
+`close()` is idempotent — calling it twice is not an error, which matters
+because the C ABI owns the handle and a double free would not be recoverable."""),
+    ("code", """db.close()
+db.close()
+db.is_open"""),
+    ("md", """Using a closed database raises rather than failing quietly:"""),
     ("code", """try:
-    unidatabase.fibonacci(93)
-except ValueError as exc:
-    print("ValueError:", exc)"""),
+    db.execute("SELECT 1")
+except RuntimeError as exc:
+    print("RuntimeError:", exc)"""),
+    ("md", """## Errors carry SQLite's own message
+
+The C ABI reports a failure as a false return and leaves the reason in its own
+error slot; the binding reads it before the next call can overwrite it, and
+raises with it."""),
+    ("code", """with unidatabase.Database(path) as db:
+    try:
+        db.execute("SELECT * FROM a_table_that_does_not_exist")
+    except RuntimeError as exc:
+        print("RuntimeError:", exc)"""),
+    ("md", "A path that is not a string is a type error, not a coercion."),
     ("code", """try:
-    unidatabase.fibonacci(-1)
-except ValueError as exc:
-    print("ValueError:", exc)"""),
-    ("md", "A non-integer argument is a type error, not a coercion."),
-    ("code", """try:
-    unidatabase.fibonacci(10.0)
+    unidatabase.Database(42)
 except TypeError as exc:
     print("TypeError:", exc)"""),
+    ("code", "directory.cleanup()"),
     ("md", """## The C ABI underneath
 
-The same entry points are reachable from anything that speaks C. There the
-contract is expressed by clamping instead of raising — an exception must never
-unwind across an ABI boundary:
+The same engine is reachable from anything that speaks C, handle-based:
 
 ```c
-unidatabase_fibonacci(-5);   /* 0       — clamped */
-unidatabase_fibonacci(200);  /* fib(92) — clamped */
+void *unidatabase_open(const char *path);
+int   unidatabase_execute(void *connection, const char *sql);
+void  unidatabase_close(void *connection);
+const char *unidatabase_last_error(void);
 ```
+
+There a failure is a NULL or zero return with the reason in
+`unidatabase_last_error`, because an exception must never unwind across an ABI
+boundary.
 
 See `include/UniDatabase.h`, and the book for the full picture."""),
 ]

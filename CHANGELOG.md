@@ -11,35 +11,32 @@ change, whatever the Nim API did.
 
 ## [Unreleased]
 
+Nothing released yet; 0.1.0 will be the first tag. What it will carry:
+
 ### Added
 
-- `tools/gate.nim`, and a success marker on every task. Nimble 0.22 exits 0
-  when an `exec` inside a task failed, so its exit code proves nothing; the
-  gate reads the marker instead.
-- A `canary` task that must fail, and a CI job that checks it does.
-- An `all-green` job over every other job: one check for branch protection,
-  and a skipped job can no longer pass for a green one.
-- `tests/test_version.nim`, which reads the version out of the manifest, the
-  Nim constant, the C header, the C ABI and the Python packaging, and fails
-  when one drifts.
-- `CODE_OF_CONDUCT.md`, `CITATION.cff`, `.editorconfig`, this file.
+- The SQLite engine: connections, prepared statements, binding and column
+  reads, transactions, the schema version, and a capability set answered for
+  the connection at hand rather than for the library.
+- `sqlite_raw`, the C declarations kept apart from the typed API, so a second
+  backend can be a sibling of `sqlite` rather than a fork of it.
+- A C ABI over the same engine, handle-based: a connection is an opaque
+  pointer, pinned with `GC_ref` because under `--mm:arc` the C caller holds
+  the only reference. Failures are a false or NULL return with the reason in
+  `unidatabase_last_error`; no Nim exception crosses the boundary.
+- A Cython binding, `unidatabase.Database`, usable as a context manager, which
+  turns each of those failures back into an exception.
+- `Statement.isLive`, and a guard on every other `Statement` procedure: a
+  finalized statement is refused with `DatabaseError` rather than answered.
+  Left to the linked SQLite, four of the seven answered as if it were live --
+  `columnInt64` gave 0 for a row holding 42 -- so the refusal is the library's
+  and does not depend on which SQLite was linked.
+- The family's gates: `tools/gate.nim` and a success marker per task, a
+  `canary` that must fail, `all-green` over every CI job, and
+  `tests/test_version.nim` for the version's copies.
 
-### Changed
+### Known limits
 
-- The C ABI takes the once-primitive runtime guard and `raises: []` that every
-  library cloned from here already had.
-- The PyPI distribution becomes `lituus-unidatabase`; the import name stays
-  `unidatabase`.
-- Nim minimum 2.0 to 2.2.
-- Every GitHub action is pinned by commit SHA.
-- Coverage below 90% fails, instead of being reported and ignored.
-- Pages deploys only where `PUBLISH_PAGES` is set.
-- The Python binding reads the domain bound from the C header rather than
-  restating it.
-
-### Fixed
-
-- Documentation that the code contradicted: the C prefix, what `--noMain`
-  implies, NimContracts described as optional, a library that does not exist,
-  eight numbered layers nothing defines, the platforms the C ABI is tested on,
-  and a NimContracts branch deleted upstream.
+- SQLite only. What a second backend has to preserve before it is added is in
+  ADR-0005.
+- The `0.x` C ABI is not frozen.
