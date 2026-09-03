@@ -35,11 +35,13 @@ answer, not undefined behaviour: a refusal that names what was attempted.
 """
 
 nbCode:
-  import std/os
+  import std/[os, tempfiles]
   import UniDatabase
 
-  let directory = getTempDir() / "unidatabase-book-architecture"
-  createDir(directory)
+  # createTempDir, not a fixed path under getTempDir: the OS reserves the name
+  # and gives it to this process alone, so a local process cannot pre-create it
+  # as a symlink and redirect what SQLite writes.
+  let directory = createTempDir("unidatabase-book-", "")
   var connection = openSqlite(directory / "ownership.sqlite")
   connection.execute("CREATE TABLE note(n INTEGER, s TEXT)")
   connection.execute("INSERT INTO note VALUES (42, 'reel')")

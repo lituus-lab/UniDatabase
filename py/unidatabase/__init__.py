@@ -29,6 +29,10 @@ class Database:
     def __init__(self, path):
         if not isinstance(path, str):
             raise TypeError(f"path must be str, got {type(path).__name__}")
+        # The C ABI reads a NUL-terminated string: an embedded NUL would make
+        # SQLite see only the prefix, and open a file the caller did not name.
+        if "\x00" in path:
+            raise ValueError("path must not contain a NUL character")
         self._connection = _Connection()
         if not self._connection.open(path.encode("utf-8")):
             raise RuntimeError(_error("cannot open " + path))
@@ -38,6 +42,8 @@ class Database:
         statement the engine refused."""
         if not isinstance(sql, str):
             raise TypeError(f"sql must be str, got {type(sql).__name__}")
+        if "\x00" in sql:
+            raise ValueError("sql must not contain a NUL character")
         if not self._connection.is_open:
             raise RuntimeError("the database is closed")
         if not self._connection.execute(sql.encode("utf-8")):

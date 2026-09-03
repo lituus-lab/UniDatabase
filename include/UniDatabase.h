@@ -28,7 +28,12 @@ extern "C" {
  *     call overwrites it, so read it before calling again.
  *   * No Nim exception crosses this boundary; every entry point traps.
  *   * A connection carries no lock. One thread at a time may use or close a
- *     given one; a caller sharing one across threads serialises that itself. */
+ *     given one; a caller sharing one across threads serialises that itself.
+ *   * The error slot is one for the whole library, not one per thread, and it
+ *     is not synchronised. Two threads failing at once race on it, and a
+ *     returned pointer can be invalidated by another thread's failure before
+ *     it is read. Read it on the thread that made the failing call, before any
+ *     other call on any thread. */
 
 /* Static version string; do not free. */
 const char *unidatabase_version(void);

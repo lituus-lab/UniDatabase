@@ -3,13 +3,25 @@
 ## The failure paths. The happy path is covered next door; what is checked here
 ## is that every refusal is a DatabaseError carrying the engine's own words,
 ## and that a connection survives one.
-import std/[os, strutils, times, unittest]
+import std/[os, strutils, tempfiles, unittest]
 import UniDatabase
 
+let scratchRoot = createTempDir("unidatabase-errors-", "")
+  ## One directory the OS reserves for this run, holding every test's files.
+  ##
+  ## It used to be one fixed name per second under `getTempDir`, and only the
+  ## flat database files were removed afterwards: the nested database and the
+  ## root of the test that refuses to create a parent both outlived the run.
+  ## One `mkdtemp` root, removed once, leaves nothing whatever a test does
+  ## inside it -- and cannot collide with a run started in the same second.
+
 proc scratch(name: string): string =
-  let base = getTempDir() / ("unidatabase-errors-" & $getTime().toUnix)
-  createDir(base)
-  base / name
+  ## A path inside this run's root. Each test gets its own subdirectory, so
+  ## nothing a test leaves behind can be mistaken for another test's.
+  result = scratchRoot / name.changeFileExt("") / name
+  createDir(result.parentDir)
+
+
 
 suite "SQLite refusals":
   test "a statement the engine rejects raises, and the connection survives":
@@ -196,3 +208,9 @@ suite "a finalized statement is refused, never answered":
 
     connection.close
     removeFile(path)
+
+# Last line of the module, not an exit hook: `unittest` runs each suite where it
+# is written, so by here every test has finished, and the removal is ordered by
+# the program rather than by whatever the runtime tears down first. An exit proc
+# was tried and left the root behind.
+removeDir(scratchRoot)
