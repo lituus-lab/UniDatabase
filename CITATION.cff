@@ -4,8 +4,10 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: UniDatabase
 abstract: >-
-  Template repository for the lituus-lab Uni* libraries: a Nim engine, a C ABI
-  and a Python binding, with the gates and CI that keep the three in agreement.
+  A database engine behind a backend-neutral typed API: connections, prepared
+  statements, transactions, schema versioning and per-connection capability
+  detection, reachable from Nim, from C and from Python. SQLite is the first
+  backend.
 type: software
 authors:
   - family-names: Bartoletti

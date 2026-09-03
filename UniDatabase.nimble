@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 lituus-lab
-# UniDatabase — reference scaffold for the lituus-lab Uni* family.
+# UniDatabase — the database engine of the lituus-lab Uni* family.
 
 version       = "0.1.0"
 author        = "lituus-lab"
-description   = "Reference template for the lituus-lab Uni* libraries (Nim + C-ABI + Python)"
+description   = "Typed database engine behind a backend-neutral API, SQLite first (Nim + C ABI + Python)"
 license       = "Apache-2.0"
 srcDir        = "src"
 
